@@ -83,7 +83,7 @@ def smooth_curve(points: List[Point2D], *, corner_radius: float = 10.0, samples_
         # clamp radius to segment lengths (so we don't overshoot)
         len1 = math.hypot(*v1)
         len2 = math.hypot(*v2)
-        r = min(corner_radius, 0.45 * len1, 0.45 * len2)
+        r = min(corner_radius, 0.9 * len1, 0.9 * len2)
 
         a = (p1[0] - u1[0] * r, p1[1] - u1[1] * r)  # entry point
         b = (p1[0] + u2[0] * r, p1[1] + u2[1] * r)  # exit point
@@ -117,6 +117,6 @@ def fakeplan_squiggly(world: GridWorld) -> Path2D:
     pts = [cell_to_world(c, resolution=world.resolution, center_cell=world.center_cell) for c in cells]
 
     # Smooth corners (optional)
-    pts_smooth = smooth_curve(pts, corner_radius=20.0, samples_per_corner=20)
+    pts_smooth = smooth_curve(pts, corner_radius=50.0, samples_per_corner=2)
 
     return Path2D(points=pts_smooth)
