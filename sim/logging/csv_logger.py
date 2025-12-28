@@ -1,4 +1,4 @@
-# sim/io/logging.py
+# sim/logging/csv_logger.py
 from __future__ import annotations
 
 import csv
@@ -11,11 +11,17 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class CsvLogger:
     """
-    Simple buffered CSV logger.
+    Simple buffered CSV logger with a stable schema.
 
-    - Call `log({...})` each step with a dict of scalar values.
-    - The first call sets the column order (or you can pass fieldnames).
-    - Data is buffered in memory and flushed to disk every `flush_every` rows.
+    Usage:
+      - If you pass `fieldnames`, schema is fixed and enforced.
+      - If `fieldnames` is None, schema is inferred from first row and enforced thereafter.
+        Missing fields are filled with NaN.
+        Unexpected extra fields raise ValueError (catches typos / drift).
+
+    Notes:
+      - anim.py merges base row + debug row. With sim_loop returning a fixed debug template,
+        the set of keys remains constant and this logger stays happy.
     """
     path: str
     flush_every: int = 200
@@ -31,13 +37,12 @@ class CsvLogger:
             # Fix column order from the first row
             self.fieldnames = list(row.keys())
         else:
-            # Ensure stable schema:
-            # - Fill missing keys with a sensible placeholder (NaN by default).
-            # - Still error on unexpected extra keys (helps catch typos/new fields).
+            # Fill missing keys with NaN
             for k in self.fieldnames:
                 if k not in row:
                     row[k] = math.nan
 
+            # Strict: error on unexpected extra keys
             extra = [k for k in row.keys() if k not in self.fieldnames]
             if extra:
                 raise ValueError(
@@ -53,13 +58,11 @@ class CsvLogger:
         if not self._buffer:
             return
 
-        # Ensure parent dir exists
         parent = os.path.dirname(self.path)
         if parent:
             os.makedirs(parent, exist_ok=True)
 
         if not self._opened:
-            # Open once and keep handle for speed
             self._file = open(self.path, "w", newline="")
             self._writer = csv.DictWriter(self._file, fieldnames=self.fieldnames)
             self._writer.writeheader()
@@ -68,12 +71,9 @@ class CsvLogger:
         assert self._writer is not None
         self._writer.writerows(self._buffer)
         self._buffer.clear()
-
-        # Force write to OS buffers (optional; comment out if you want max speed)
         self._file.flush()
 
     def close(self) -> None:
-        # Flush remaining rows and close the file
         self.flush()
         if self._file is not None:
             self._file.close()
