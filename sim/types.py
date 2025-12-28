@@ -1,6 +1,7 @@
 from dataclasses import dataclass 
-from typing import List, Tuple 
+from typing import List, Tuple, TypeAlias
 
+Point2: TypeAlias = tuple[float, float]
 
 @dataclass
 class Pose2D:

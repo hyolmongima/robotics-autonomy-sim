@@ -1,11 +1,11 @@
 import math
 from typing import List, Tuple, Optional
 
-from sim.types import Pose2D, VelocityCommand2D
+from sim.types import Pose2D, VelocityCommand2D, Point2
 from sim.math.geometry import project_point_to_segment, circle_segment_intersections
 from sim.math.transforms import world_to_body
 
-Point2 = Tuple[float, float]
+
 
 
 class PurePursuitController:

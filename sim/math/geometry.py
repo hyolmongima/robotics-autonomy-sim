@@ -5,8 +5,7 @@ from typing import Tuple, List
 import math
 import numpy as np
 
-Point2 = Tuple[float, float]
-
+from sim.types import Point2
 
 @dataclass(frozen=True)
 class SegmentProjection:

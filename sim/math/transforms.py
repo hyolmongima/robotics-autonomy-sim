@@ -4,9 +4,7 @@ from typing import Tuple
 import math
 import numpy as np
 
-from sim.types import Pose2D
-
-Point2 = Tuple[float, float]
+from sim.types import Pose2D, Point2
 
 
 def world_to_body(p_world: Point2, pose_world: Pose2D) -> Point2:
