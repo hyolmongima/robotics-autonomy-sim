@@ -12,6 +12,7 @@ from matplotlib.lines import Line2D
 
 from sim.types import Pose2D, VelocityCommand2D, Path2D
 from sim.viz.draw import draw_grid, draw_path
+from sim.logging.csv_logger import CsvLogger
 
 
 @dataclass
@@ -56,12 +57,20 @@ def run_loop(
     dt: float,
     step_fn: Callable[[Pose2D], StepOut],
     viz: VizConfig = VizConfig(),
+    log_csv: Optional[str] = None,
+    log_flush_every: int = 200,
 ) -> None:
     pose = Pose2D(pose0.x, pose0.y, pose0.yaw)
     xmin, xmax, ymin, ymax = _world_bounds(world)
 
     def in_bounds(p: Pose2D) -> bool:
         return (xmin <= p.x <= xmax) and (ymin <= p.y <= ymax)
+
+    #Logging
+    logger: Optional[CsvLogger] = None
+    sim_t: float = 0.0
+    if log_csv is not None:
+        logger = CsvLogger(log_csv, flush_every=log_flush_every)
 
     fig, ax = plt.subplots()
 
@@ -236,12 +245,11 @@ def run_loop(
         # center dot
         robot_center_ln.set_data([p.x], [p.y])
 
-        # trail line is set externally (live or view)
         # detailed overlays
         if viz.detailed:
             pL = debug.get("lookahead_world") if (debug is not None) else None
             rad = debug.get("lookahead_L") if (debug is not None) else None
-            idx = debug.get("progress_idx") if (debug is not None) else None
+            _idx = debug.get("progress_idx") if (debug is not None) else None
 
             if lookahead_ln is not None and pL is not None:
                 lookahead_ln.set_data([pL[0]], [pL[1]])
@@ -255,7 +263,7 @@ def run_loop(
 
             if debug_text is not None:
                 mode = "PAUSED" if paused["v"] else "RUNNING"
-                # debug_text.set_text(f"{mode}  {extra_text}\nprogress_idx: {idx}\n(space/p/v pause, ←/→ browse/step, n step, q quit)")
+                # debug_text.set_text(f"{mode}  {extra_text}\n(space/p/v pause, ←/→ browse/step, n step, q quit)")
 
         fig.canvas.draw_idle()
 
@@ -264,69 +272,110 @@ def run_loop(
     render(pose, debug=None, extra_text="(click plot, then press space)")
     plt.pause(0.001)
 
-    # main loop
-    for _k in range(viz.max_steps):
-        if not plt.fignum_exists(fig.number):
-            return
+    try:
+        # main loop
+        for _k in range(viz.max_steps):
+            if not plt.fignum_exists(fig.number):
+                return
 
-        # paused browse (no sim)
-        if paused["v"] and not step_once["v"]:
-            if history and view_idx["v"] is not None:
-                hp, hdbg = history[view_idx["v"]]
-                _set_trail_for_view(view_idx["v"])
-                render(hp, hdbg or {}, extra_text=f"(frame {view_idx['v']+1}/{len(history)})")
-            plt.pause(0.05)
-            continue
+            # paused browse (no sim)
+            if paused["v"] and not step_once["v"]:
+                if history and view_idx["v"] is not None:
+                    hp, hdbg = history[view_idx["v"]]
+                    _set_trail_for_view(view_idx["v"])
+                    render(hp, hdbg or {}, extra_text=f"(frame {view_idx['v']+1}/{len(history)})")
+                plt.pause(0.05)
+                continue
 
-        # if paused but requested one sim step
-        if step_once["v"]:
-            step_once["v"] = False
-            view_idx["v"] = len(history) - 1
+            # if paused but requested one sim step
+            if step_once["v"]:
+                step_once["v"] = False
+                view_idx["v"] = len(history) - 1
 
-        t0 = time.perf_counter()
+            # measure controller/step function wall time only
+            t0 = time.perf_counter()
 
-        # simulate one step from current pose
-        out = step_fn(pose)
-        if len(out) == 3:
-            cmd, new_pose, done = out  # type: ignore[misc]
-            debug = None
-        else:
-            cmd, new_pose, done, debug = out  # type: ignore[misc]
+            # simulate one step from current pose
+            out = step_fn(pose)
 
-        # attach debug to current history state (pose used for control)
-        history[-1] = (Pose2D(pose.x, pose.y, pose.yaw), debug)
+            wall_step_s = time.perf_counter() - t0
 
-        # render at pose used to compute debug
-        _set_trail_live()
-        render(pose, debug or {}, extra_text=f"(frame {len(history)})")
+            if len(out) == 3:
+                cmd, new_pose, done = out  # type: ignore[misc]
+                debug = None
+            else:
+                cmd, new_pose, done, debug = out  # type: ignore[misc]
 
-        # try to maintain real-time: sleep only what's left after drawing
-        elapsed = time.perf_counter() - t0
-        plt.pause(max(0.001, dt - elapsed))
+            # ptional CSV logging (one row per sim tick) ---
+            if logger is not None:
+                row: Dict[str, Any] = {
+                    "sim_t": sim_t,
+                    "dt": dt,
+                    "x": pose.x,
+                    "y": pose.y,
+                    "yaw": pose.yaw,
+                    "v_cmd": cmd.v,
+                    "omega_cmd": cmd.omega,
+                    "done": int(bool(done)),
+                    "wall_step_s": wall_step_s,
+                    "overrun": int(wall_step_s > dt),
+                }
 
-        # advance state (and append new pose to history/trail buffers)
-        pose = new_pose
-        history.append((Pose2D(pose.x, pose.y, pose.yaw), None))
-        trail_x.append(pose.x)
-        trail_y.append(pose.y)
+                if debug:
+                    if "lookahead_world" in debug:
+                        xLw, yLw = debug["lookahead_world"]
+                        row["xLw"] = xLw
+                        row["yLw"] = yLw
+                    if "progress_idx" in debug:
+                        row["progress_idx"] = int(debug["progress_idx"])
+                    if "kappa" in debug:
+                        row["kappa"] = float(debug["kappa"])
+                    if "L_used" in debug:
+                        row["L_used"] = float(debug["L_used"])
 
-        # stop checks
-        if not in_bounds(pose):
-            ax.set_title("Robot left world bounds — stopped.")
+                logger.log(row)
+
+            # attach debug to current history state (pose used for control)
+            history[-1] = (Pose2D(pose.x, pose.y, pose.yaw), debug)
+
+            # render at pose used to compute debug
             _set_trail_live()
-            render(pose, debug or {}, extra_text="(stopped)")
-            plt.pause(0.001)
-            break
+            render(pose, debug or {}, extra_text=f"(frame {len(history)})")
 
-        if done:
-            ax.set_title("Done — stopped.")
-            _set_trail_live()
-            render(pose, debug or {}, extra_text="(done)")
-            plt.pause(0.001)
-            break
+            # try to maintain real-time: sleep only what's left after drawing
+            elapsed_draw = time.perf_counter() - t0  # includes step + some render overhead
+            plt.pause(max(0.001, dt - elapsed_draw))
 
-        if paused["v"]:
-            view_idx["v"] = len(history) - 1
+            # advance state (and append new pose to history/trail buffers)
+            pose = new_pose
+            history.append((Pose2D(pose.x, pose.y, pose.yaw), None))
+            trail_x.append(pose.x)
+            trail_y.append(pose.y)
+
+            # advance simulated time (exactly dt per step)
+            sim_t += dt
+
+            # stop checks
+            if not in_bounds(pose):
+                ax.set_title("Robot left world bounds — stopped.")
+                _set_trail_live()
+                render(pose, debug or {}, extra_text="(stopped)")
+                plt.pause(0.001)
+                break
+
+            if done:
+                ax.set_title("Done — stopped.")
+                _set_trail_live()
+                render(pose, debug or {}, extra_text="(done)")
+                plt.pause(0.001)
+                break
+
+            if paused["v"]:
+                view_idx["v"] = len(history) - 1
+
+    finally:
+        if logger is not None:
+            logger.close()
 
     plt.ioff()
     plt.show()

@@ -11,17 +11,28 @@ from sim.viz.anim import run_loop, VizConfig
 
 
 def parse_args():
-    p = argparse.ArgumentParser()
-    p.add_argument("--dt", type= float, default=0.05)
-    p.add_argument("--max_vel", type= float, default=10.0)
-    p.add_argument("--L", type= float, default= 2) #meters
-    p.add_argument("--visualize_detailed", action="store_true")
+    p = argparse.ArgumentParser(
+        description="Run simulation loop with A* planning, Pure Pursuit Tracker and Ideal plant in loop",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    p.add_argument("--visualize_detailed", action="store_true",
+                   help="Show lookahead geometry and debug overlays.")
+    p.add_argument("--log_csv", type=str, default=None,
+                   help="If set, write a CSV log to this path (e.g., logs/pp_run.csv).")
+    
+    p.add_argument("--dt", type=float, default=0.05, help=argparse.SUPPRESS)
+    p.add_argument("--max_vel", type=float, default=10.0, help=argparse.SUPPRESS)
+    p.add_argument("--max_yawrate", type=float, default=1.5, help=argparse.SUPPRESS)
+    p.add_argument("--L", type=float, default=3.0, help=argparse.SUPPRESS)
+
     return p.parse_args()
+
 
 
 def main():
     args = parse_args() #parse arguments
-    pose0 = Pose2D(x=-40, y=-40, yaw=math.pi/2) #get bot's spawn pose
+    pose0 = Pose2D(x=-30, y=-20, yaw=math.pi/2) #get bot's spawn pose
     world = make_demo_world() #get grid world with start and end cordinates
     
     #Plan path once for now
@@ -39,7 +50,7 @@ def main():
             Pure Pursuit takes current pose to give control inputs in form of bot velocity command in bot frame
             Plant state updates (simple Euler update for pose and velocity is just target vel.- ideal system)
         '''
-        vel_target, pL = pp.step(pose, max_vel = args.max_vel )    #Controller step
+        vel_target, pL = pp.step(pose, max_vel = args.max_vel, max_yawrate = args.max_yawrate)    #Controller step
         new_pose = update_kinematics(pose, vel_target, args.dt) # Plant update
         
         #stopping condition: if current pose is close to end goal within threshold
@@ -58,7 +69,13 @@ def main():
         return vel_target, new_pose, done
 
     #run loop: physics update and rendering coupled unlike physics engines 
-    run_loop(world=world, path=path, pose0=pose0, dt=args.dt, step_fn=step_fn, viz=VizConfig(title="Pure Pursuit", detailed=args.visualize_detailed))
+    run_loop(
+        world=world, path=path, pose0=pose0, dt=args.dt, step_fn=step_fn,
+        viz=VizConfig(title="Pure Pursuit", 
+        detailed=args.visualize_detailed), 
+        log_csv="logs/pp_run.csv"
+    )
+
 
 
 if __name__ == "__main__":

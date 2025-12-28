@@ -55,13 +55,14 @@ class PurePursuitController:
         bot_xy = (pose.x, pose.y)
         self.progress_idx = self._update_progress_index(bot_xy, i0=0, i1=len(self.P) - 2) 
 
-    def step(self, pose: Pose2D, *, max_vel: float) -> Tuple[VelocityCommand2D, Point2]:
+    def step(self, pose: Pose2D, *, max_vel: float, max_yawrate: float) -> Tuple[VelocityCommand2D, Point2]:
         """
         Compute one Pure Pursuit control update.
 
         Args:
           pose: Pose2D robot pose in world frame at the current timestep.
           max_vel: Upper bound on commanded forward speed (m/s).
+          max_yawrate: Upper bound on commanded angular speed (rad/s).
     
         Returns:
           cmd: VelocityCommand2D(v, omega)
@@ -81,9 +82,9 @@ class PurePursuitController:
 
         # canonical curvature equation
         kappa = 2.0 * yL / (self.L * self.L)
-
-        v_cmd = float(max_vel)
-        omega = v_cmd * kappa
+        omega_max = max_yawrate
+        v_cmd = min(max_vel, omega_max / (abs(kappa) + 1e-6))
+        omega = max(-omega_max, min(omega_max, v_cmd * kappa))
         return VelocityCommand2D(v=v_cmd, omega=float(omega)), pL_world
 
 
