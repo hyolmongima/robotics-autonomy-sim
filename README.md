@@ -1,42 +1,12 @@
 # Robotics Autonomy Sim
+A lightweight 2D autonomy stack for non-holonomic mobile robots, built for personal exploration.
 
-A lightweight 2D autonomy sandbox for **non-holonomic mobile robots**, built to deeply understand
-**planning → control → plant → sensing → estimation** as a closed-loop system.
+The project begins intentionally simple, with a basic Python-based kinematic simulation for planning and control. Over time, it is designed to scale toward higher-fidelity simulation, comparative evaluation of algorithms across planning, control, and estimation, and eventual deployment in C++ with Gazebo and on real robots.
 
-This project starts intentionally simple (Python + Matplotlib, kinematic diff-drive),
-with the goal of growing toward higher-fidelity simulation, comparative controller studies,
-and eventual C++ / Gazebo / real-robot deployment.
-
----
-
-## Motivation
-
-Most autonomy stacks are learned *top-down* through large frameworks.
-This repo is the opposite: a **from-scratch, geometry-first** environment to build intuition for:
-
-- Path planning on grid maps
-- Geometric path tracking (Pure Pursuit today; Stanley/MPC later)
-- Discrete-time closed-loop behavior
-- Timing, latency, and controller stability
-- Clean modular interfaces that scale with fidelity
-
-The emphasis is **learning and insight**, not production code.
-
----
-
-## Current Features (MVP)
-
-- 2D grid world with start/goal
-- Global path planning (placeholder → A*)
+## Current Features (Growing)
+- Global path planning with A*
+- Pure Pursuit Path tracker
 - Differential-drive kinematic plant
-- **Pure Pursuit** path tracker
-- Fixed-step discrete-time simulation
-- Matplotlib visualization with:
-  - robot footprint & heading
-  - path + trail
-  - lookahead geometry (optional)
-  - pause / step / browse history
-- Optional CSV logging for clean, offline analysis
 
 ---
 
@@ -57,4 +27,5 @@ python3 -m scripts.run_simulation --log_csv logs/pp_run.csv
 Detailed + logging:
 ```bash
 python3 -m scripts.run_simulation --visualize_detailed --log_csv logs/<xyz>.csv
+
 ```
