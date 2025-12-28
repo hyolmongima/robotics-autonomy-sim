@@ -1,6 +1,6 @@
 # Robotics Autonomy Sim — A* Path Planner + Pure Pursuit Controller on Grid World for Diff. Drive Robot (MVP)
 
-This repo is a lightweight 2D Python + Matplotlib simulation for me to familiarize myself on various elements of closed-loop non-holonomic mobile robotics including planning, controls and state estimation.
+This repo is a lightweight 2D Python + Matplotlib simulation for me to familiarize on various elements of closed-loop non-holonomic mobile robotics including planning, controls and state estimation.
 
 
 ## Run
