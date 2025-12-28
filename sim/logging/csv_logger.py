@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import os
+import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -15,10 +16,6 @@ class CsvLogger:
     - Call `log({...})` each step with a dict of scalar values.
     - The first call sets the column order (or you can pass fieldnames).
     - Data is buffered in memory and flushed to disk every `flush_every` rows.
-
-    Notes:
-      - This is fast enough for typical matplotlib sims when flush_every >= 100.
-      - Avoid flush_every=1 (disk I/O every step will slow you down).
     """
     path: str
     flush_every: int = 200
@@ -34,11 +31,14 @@ class CsvLogger:
             # Fix column order from the first row
             self.fieldnames = list(row.keys())
         else:
-            # Ensure stable schema
-            missing = [k for k in self.fieldnames if k not in row]
+            # Ensure stable schema:
+            # - Fill missing keys with a sensible placeholder (NaN by default).
+            # - Still error on unexpected extra keys (helps catch typos/new fields).
+            for k in self.fieldnames:
+                if k not in row:
+                    row[k] = math.nan
+
             extra = [k for k in row.keys() if k not in self.fieldnames]
-            if missing:
-                raise ValueError(f"CsvLogger missing keys in row: {missing}")
             if extra:
                 raise ValueError(
                     f"CsvLogger got unexpected keys in row: {extra}. "

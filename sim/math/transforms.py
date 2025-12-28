@@ -40,3 +40,7 @@ def body_to_world(p_body: Point2, pose_world: Pose2D) -> Point2:
     xw = c * pb[0] - s * pb[1] + t[0]
     yw = s * pb[0] + c * pb[1] + t[1]
     return (float(xw), float(yw))
+
+
+def wrap_pi(a: float) -> float:
+    return (a + math.pi) % (2.0 * math.pi) - math.pi
